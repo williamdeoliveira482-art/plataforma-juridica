@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  LAWYER
+  FINANCE
+  ASSISTANT
+}
+
+enum ClientType {
+  PF
+  PJ
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ProcessStatus {
+  NOVO_CASO
+  EM_ANALISE
+  AGUARDANDO_DOCUMENTACAO
+  EM_ANDAMENTO
+  AGUARDANDO_CLIENTE
+  CONCLUIDO
+  ARQUIVADO
+}
+
+enum TaskPriority {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+enum TaskStatus {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum EventType {
+  AUDIENCIA
+  REUNIAO
+  PRAZO
+  COMPROMISSO
+}
+
+enum FinancialStatus {
+  PENDENTE
+  PAGO
+  ATRASADO
+  CANCELADO
+}
+
+enum InteractionStatus {
+  NOVO
+  EM_ATENDIMENTO
+  AGUARDANDO_CLIENTE
+  ENCAMINHADO
+  FINALIZADO
+}
+
+model Office {
+  id        String   @id @default(uuid())
+  name      String
+  document  String?
+  createdAt DateTime @default(now())
+
+  users            User[]
+  clients          Client[]
+  processes        Process[]
+  tasks            Task[]
+  events           Event[]
+  documents        Document[]
+  financialEntries FinancialEntry[]
+  interactions     Interaction[]
+  aiInteractions   AIInteraction[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  officeId     String
+  office       Office   @relation(fields: [officeId], references: [id])
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  tasksResponsible     Task[]          @relation("TaskResponsible")
+  processesResponsible Process[]       @relation("ProcessResponsible")
+  eventsResponsible    Event[]         @relation("EventResponsible")
+  documentsUploaded    Document[]      @relation("DocumentUploadedBy")
+  interactionsHandled  Interaction[]   @relation("InteractionResponsible")
+  aiInteractions       AIInteraction[]
+}
+
+model Client {
+  id          String       @id @default(uuid())
+  officeId    String
+  office      Office       @relation(fields: [officeId], references: [id])
+  type        ClientType
+  name        String
+  document    String       @unique
+  rg          String?
+  birthDate   DateTime?
+  responsible String?
+  phone       String?
+  whatsapp    String?
+  email       String?
+  address     String?
+  notes       String?
+  status      ClientStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+
+  processes        Process[]
+  tasks            Task[]
+  events           Event[]
+  documents        Document[]
+  financialEntries FinancialEntry[]
+  interactions     Interaction[]
+  portalAccess     ClientPortalAccess?
+  aiInteractions   AIInteraction[]
+}
+
+model Process {
+  id                String        @id @default(uuid())
+  officeId          String
+  office            Office        @relation(fields: [officeId], references: [id])
+  clientId          String
+  client            Client        @relation(fields: [clientId], references: [id])
+  number            String
+  area              String
+  court             String?
+  chamber           String?
+  responsibleUserId String?
+  responsibleUser   User?         @relation("ProcessResponsible", fields: [responsibleUserId], references: [id])
+  status            ProcessStatus @default(NOVO_CASO)
+  openedAt          DateTime      @default(now())
+  description       String?
+  notes             String?
+  createdAt         DateTime      @default(now())
+
+  tasks            Task[]
+  events           Event[]
+  documents        Document[]
+  history          ProcessHistory[]
+  financialEntries FinancialEntry[]
+  aiInteractions   AIInteraction[]
+}
+
+model ProcessHistory {
+  id        String   @id @default(uuid())
+  processId String
+  process   Process  @relation(fields: [processId], references: [id])
+  note      String
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id                String       @id @default(uuid())
+  officeId          String
+  office            Office       @relation(fields: [officeId], references: [id])
+  title             String
+  description       String?
+  responsibleUserId String?
+  responsibleUser   User?        @relation("TaskResponsible", fields: [responsibleUserId], references: [id])
+  clientId          String?
+  client            Client?      @relation(fields: [clientId], references: [id])
+  processId         String?
+  process           Process?     @relation(fields: [processId], references: [id])
+  priority          TaskPriority @default(MEDIA)
+  status            TaskStatus   @default(PENDENTE)
+  dueDate           DateTime?
+  createdAt         DateTime     @default(now())
+}
+
+model Event {
+  id                String    @id @default(uuid())
+  officeId          String
+  office            Office    @relation(fields: [officeId], references: [id])
+  type              EventType
+  title             String
+  date              DateTime
+  responsibleUserId String?
+  responsibleUser   User?     @relation("EventResponsible", fields: [responsibleUserId], references: [id])
+  clientId          String?
+  client            Client?   @relation(fields: [clientId], references: [id])
+  processId         String?
+  process           Process?  @relation(fields: [processId], references: [id])
+  description       String?
+  createdAt         DateTime  @default(now())
+}
+
+model DocumentCategory {
+  id   String @id @default(uuid())
+  name String @unique
+
+  documents Document[]
+}
+
+model Document {
+  id               String            @id @default(uuid())
+  officeId         String
+  office           Office            @relation(fields: [officeId], references: [id])
+  name             String
+  categoryId       String?
+  category         DocumentCategory? @relation(fields: [categoryId], references: [id])
+  clientId         String?
+  client           Client?           @relation(fields: [clientId], references: [id])
+  processId        String?
+  process          Process?          @relation(fields: [processId], references: [id])
+  uploadedByUserId String?
+  uploadedByUser   User?             @relation("DocumentUploadedBy", fields: [uploadedByUserId], references: [id])
+  filePath         String
+  createdAt        DateTime          @default(now())
+}
+
+model FinancialEntry {
+  id          String          @id @default(uuid())
+  officeId    String
+  office      Office          @relation(fields: [officeId], references: [id])
+  clientId    String
+  client      Client          @relation(fields: [clientId], references: [id])
+  processId   String?
+  process     Process?        @relation(fields: [processId], references: [id])
+  description String
+  amount      Decimal         @db.Decimal(12, 2)
+  dueDate     DateTime
+  status      FinancialStatus @default(PENDENTE)
+  createdAt   DateTime        @default(now())
+
+  payments Payment[]
+}
+
+model Payment {
+  id               String         @id @default(uuid())
+  financialEntryId String
+  financialEntry   FinancialEntry @relation(fields: [financialEntryId], references: [id])
+  amount           Decimal        @db.Decimal(12, 2)
+  paidAt           DateTime       @default(now())
+  method           String?
+}
+
+model Interaction {
+  id                String            @id @default(uuid())
+  officeId          String
+  office            Office            @relation(fields: [officeId], references: [id])
+  clientId          String?
+  client            Client?           @relation(fields: [clientId], references: [id])
+  contactName       String
+  phone             String?
+  channel           String
+  reason            String
+  responsibleUserId String?
+  responsibleUser   User?             @relation("InteractionResponsible", fields: [responsibleUserId], references: [id])
+  status            InteractionStatus @default(NOVO)
+  createdAt         DateTime          @default(now())
+}
+
+model ClientPortalAccess {
+  id           String   @id @default(uuid())
+  clientId     String   @unique
+  client       Client   @relation(fields: [clientId], references: [id])
+  email        String   @unique
+  passwordHash String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model AIInteraction {
+  id              String   @id @default(uuid())
+  officeId        String
+  office          Office   @relation(fields: [officeId], references: [id])
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  clientId        String?
+  client          Client?  @relation(fields: [clientId], references: [id])
+  processId       String?
+  process         Process? @relation(fields: [processId], references: [id])
+  kind            String
+  prompt          String
+  response        String?
+  reviewedByHuman Boolean  @default(false)
+  createdAt       DateTime @default(now())
+}
